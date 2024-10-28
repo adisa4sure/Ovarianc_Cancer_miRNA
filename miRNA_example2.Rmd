@@ -1,0 +1,747 @@
+---
+title: "miRNA_example2"
+author: "Ovarian Cancer"
+date: "2024-09-06"
+output: pdf_document
+---
+
+## We have the following miRNA-sequencing datasets:
+
+# blood_oc_merged_raw_summed.rds:
+1. healthy controls
+2. ovarian cancer patients - different stages (i.e. I/II and III/IV) and tumor types (i.e. serous and clear cell)
+
+# batch4_raw_summed.rds:
+1. healthy controls
+2. patients at high risk (HR) for developing ovarian cancer (based on either family history or BRCA mutation)
+
+Here, we build a model using the healthy controls and ovarian cancer samples from the 1st dataset and healthy controls from the 2nd dataset.
+
+```{r }
+#Load in file with necessary functions/packages
+source("miRNAFunctions.R")
+```
+
+### 1. Subset data
+```{r }
+#Subset the 1st dataset to only the samples we want
+
+#Load in the raw miRNA-seq data
+df = readRDS("blood_oc_merged_raw_summed.rds")
+
+#Load in the labels for the samples
+#The "Run" column corresponds to the columns in the previous
+ann_df = readRDS("blood_oc_full_ann.rds") %>% filter(Run %in% colnames(df))
+
+#Get the IDs for the samples we want
+#In this case, we only want the Stage I/II and Stage III/IV serous adenocarcinoma samples from the PMP dataset and healthy samples from the NECC dataset
+pmp_samples = ann_df %>% 
+    filter(batch=="PMP" & ((Histology=="Serous" & (STAGE=="Stage I/II" | STAGE=="Stage III/IV")))) %>%
+    pull(Run)
+healthy_samples = ann_df %>% filter(batch=="NECC") %>% pull(Run)
+samples = c(pmp_samples, healthy_samples)
+
+#Subset the miRNA seq columns to only the samples we want, and save it as an RDS file
+df = df %>% select(one_of(samples))
+saveRDS(df, "I_IV_serous_raw.rds")
+```
+
+
+
+
+```{r }
+#Subset the 2nd dataset to only samples we want
+
+#Load in file with sample metadata
+batch4_summary = data.table::fread("batch4_summary.csv")
+#Load in sample labels
+ann = readRDS("/home/saheed/Desktop/Arizona_Courses/2024_2025/Fall_2024/Indep_Study_2024Fall/OC_miRNA/b1b4_ann_with_brca.rds") %>%
+    select(sample_id, brca_status)
+#Get top 10 highest seq-depth samples for healthy controls
+lr_samples = inner_join(batch4_summary, ann, by="sample_id") %>%
+    filter(Condition=="LR") %>%
+    arrange(desc(R1_sum)) %>%
+    pull(sample_id)
+lr_samples = lr_samples[1:10]
+#Get top 10 highest seq-depth samples for high risk (based on BRCA)
+hr_samples = inner_join(batch4_summary, ann, by="sample_id") %>%
+    filter(brca_status=="BRCA") %>%
+    arrange(desc(R1_sum)) %>%
+    pull(sample_id)
+hr_samples = hr_samples[1:10]
+#Get top 10 highest seq-depth samples for high risk (based on family history)
+fh_samples = inner_join(batch4_summary, ann, by="sample_id") %>%
+    filter(brca_status=="FH") %>%
+    arrange(desc(R1_sum)) %>%
+    pull(sample_id)
+fh_samples = fh_samples[1:10]
+#Get remaining samples for high risk (based on other factors)
+other_samples = ann %>% filter(brca_status=="Other") %>% pull(sample_id)
+samples = c(lr_samples, hr_samples, fh_samples, other_samples)
+
+#Load in raw miRNA-seq data
+df = readRDS("batch4_raw_summed.rds")
+#Subset the samples, save as RDS file
+df = df %>% select(one_of(samples))
+saveRDS(df, "batch4_top10_raw.rds")
+```
+
+
+```{r }
+df = readRDS("batch4_raw_summed.rds")
+df
+```
+
+
+```{r }
+#Check that subsetting was done correctly
+ann %>% slice(match(colnames(df), sample_id)) %>% distinct(brca_status)
+```
+
+
+### 2. Normalize and filter raw counts
+Normalize the samples for sequencing depth using transcripts per million (TPM), filter out low expression miRNA, and log-scale the normalized counts
+
+## TPM Normalization
+Run the tpm() function, which does the following:
+1. Divide the read counts by the 0.022 kB, the average length of a miRNA. This gives you reads per kilobase (RPK).
+2. Count up all the RPK values in a sample and divide this number by 1,000,000. This is your “per million” scaling factor.
+3. Divide the RPK values by the “per million” scaling factor. This gives you TPM.
+
+## Low-expression filter
+Run the selectGenes() function to filter out low expression genes. It returns a list of miRNA with higher than a certain number of raw counts in a certain proportion of samples. It takes 3 arguments:
+1. Table of raw counts, with miRNA as rows and samples as columns
+2. min.count: minimum raw count a miRNA must have in a certain proportion of samples (we use 10)
+3. N: the proportion of samples (we use 0.4)
+
+## Log-scale
+Log scale the TPM-normalized counts because very large counts negatively affect the model performance. Add 1 to each count to avoid taking the log of 0
+```{r }
+#Normalize and filter the 1st dataset
+
+#Load in subsetted counts
+df = readRDS("I_IV_serous_raw.rds")
+#Normalize with transcripts per million (TPM)
+tpm_df = df %>% tpm(gene.length = rep(.022, nrow(df))) %>% as.data.frame() 
+#Get miRNA that pass the low-expression filter
+genes = selectGenes(df, min.count = 10, N = 0.4) 
+#Subset the normalized counts to only passing miRNA
+tpm_df = tpm_df[genes,]
+#Log scale
+log_df = log(tpm_df+1)
+#Save normalized counts to RDS file
+saveRDS(log_df, "I_IV_serous_norm.rds")        
+```
+
+
+
+```{r }
+#Normalize and filter the 2nd dataset
+
+#Load in subsetted counts
+df = readRDS("batch4_top10_raw.rds")
+#Normalize with transcripts per million (TPM)
+tpm_df = df %>% tpm(gene.length = rep(.022, nrow(df))) %>% as.data.frame() 
+#Get miRNA that pass the low-expression filter
+genes = selectGenes(df, min.count = 10, N = 0.4) 
+#Subset the normalized counts to only passing miRNA
+tpm_df = tpm_df[genes,]
+#Log scale
+log_df = log(tpm_df+1)
+#Save normalized counts to RDS file
+saveRDS(log_df, "batch4_norm.rds") 
+```
+
+
+
+### 3. Remove batch effects
+The 2 datasets come from different sources, so there are batch effects between them, which negatively affect model performance. Run the run_ComBat() function, which uses the sva package to remove batch effects.
+
+It takes the following arguments:
+1. a list of counts tables to remove batch effects from
+2. a table with the batch each sample belongs to
+3. the name of the column in the table from 2. that contains the batch
+
+It returns a list of counts tables with the batch effects removed
+
+```{r }
+#Load in the normalized counts tables
+oc_df = readRDS("I_IV_serous_norm.rds") %>% rownames_to_column(var="Geneid")
+b4_df = readRDS("batch4_norm.rds") %>% rownames_to_column(var="Geneid")
+
+#Load in the combined sample labels, change the Dataset column to reflect the batch
+ann_df = readRDS("b1b4OC_ann_full.rds") %>% mutate(Dataset=case_when(Dataset != "b1" & Dataset != "b4" ~"OC",
+                                                               TRUE ~Dataset))
+
+#Remove batch effect using the run_ComBat() function
+out = run_ComBat(list(b4_df, oc_df), ann_df, batch_col = "Dataset")
+#Combine the output list of dataframes
+out_df = bind_rows(out) %>% t() %>% as.data.frame()
+#Save combined file as RDS
+saveRDS(out_df, "b4_oc_combat.rds")
+```
+
+
+
+### 4. Build model
+1. Label the samples used to build the model:
+- Healthy control = 0
+    - Samples with batch="NECC" from the 1st dataset
+    - Samples with Condition="LR" from the 2nd dataset
+- Cancer = 1
+    - Serous Stage I/II and Stage III/IV samples from the 1st dataset
+2. Label all samples for plotting
+- We will plot the predicted values of all samples with a boxplot
+- Ideally, predicted values should follow this trend (from lower to higher):
+    - Healthy controls
+    - High risk: Family history (labelled "FH.b4"), BRCA mutation (labelled "BRCA.b4"), or other (labelled "Other.b4")
+    - Stage I/II cancer (labelled "Stage I/II serous")
+    - Stage III/IV cancer (labelled "Stage III/IV serous")
+3. Build model using the build_model() function. It uses the glmnet package to build a LASSO linear regression model. It takes the following arguments:
+    1. training data to use for building model, and labels
+    2. alpha - shrinkage parameter for glmnet
+        - Value from 0 to 1
+        - Higher values result in a model with fewer selected features (miRNA)
+        - To build a LASSO model, use alpha=1. This gives the model with the fewest selected features
+    3. nfolds - number of folds to use for cross validation
+        - To do leave-one-out cross validation (LOOCV), we set this equal to the number of samples
+    4. family - set as "gaussian" for linear regression
+    5. mse - how the model error is calculated. Set as "mse" for linear regression
+4. Use the extract_nzc() function to get the features (miRNA) selected by the LASSO model. Takes the following arguments:
+    1. The LASSO model
+    2. The lambda value to use. Set as lambda.min, the lambda value that gave the lowest error
+    3. Family. Set as "gaussian" for linear regression
+5. Subset the training data to the miRNA found in 4. Build another linear model on the subsetted data using the lm() function.
+6. Use the model from 5. to predict on all samples. 
+7. Make a boxplot of the predicted values using the make_boxplot() function. It uses the ggplot2 package to make a boxplot of all samples separated by type. It takes the following arguments:
+    - pred - table with predicted values
+    - ann_df - table with type for each sample
+    - x - variable to use for the x-axis of the boxplot
+    - y - variable to use for the y-axis of the boxplot
+    - title
+
+```{r }
+#Load in the labels for the 1st dataset
+oc_ann = readRDS("blood_oc_full_ann.rds")
+#Get the ovarian cancer sample IDs
+oc_samples = oc_ann  %>% 
+    filter(batch=="PMP" & (Histology=="Serous" & (STAGE=="Stage I/II" | STAGE=="Stage III/IV"))) %>%
+    pull(Run)
+#Get the healthy control sample IDs
+control_samples = oc_ann %>% filter(batch=="NECC") %>% pull(Run)
+
+#Load in the combined labels for the 2 datasets
+ann_df = readRDS("b1b4OC_ann_full.rds") %>%
+    mutate(score=case_when(sample_id %in% control_samples | Condition=="LR" ~0, #Label healthy control samples for model
+                           sample_id %in% oc_samples ~1),   #Label cancer samples for model
+          brca_status=case_when(Condition=="Control" | brca_status=="LR" ~"Healthy control",  #Label the samples for plotting
+                                STAGE=="Stage I/II" ~"Stage I/II serous",
+                                STAGE=="Stage III/IV" ~"Stage III/IV serous",
+                                brca_status=="FH" ~"FH.b4", 
+                                brca_status=="BRCA" ~"BRCA.b4",
+                                brca_status=="Other" ~"Other.b4")) %>%
+    mutate(brca_status = factor(brca_status, ordered=T, 
+                                levels=c("Healthy control", "LR.b4", 
+                                          "FH.b4", "BRCA.b4","Other.b4",
+                                          "Stage I/II serous", "Stage III/IV serous")))  #reorder the plotting labels
+     
+```
+
+
+
+
+```{r }
+#Load in the data
+df = readRDS("b4_oc_combat.rds") 
+#Transpose table because glmnet package expects rows as samples, columns as features
+df = df %>% t() %>% as.data.frame()
+
+#Get the IDs of samples used to build model
+train_samples = ann_df %>% filter(!is.na(score)) %>% pull(sample_id)
+
+#Get table of samples used to build model
+train_df = df[(rownames(df) %in% train_samples),]
+#Get sample labels
+y = ann_df %>% slice(match(rownames(train_df), sample_id)) %>%
+    pull(score)
+#Add column contianing the labels to table
+train_df$y = y
+
+#Build 1st model (LASSO)
+mod = build_model(xy=train_df, alpha=1, 
+                  nfolds = nrow(train_df), family = "gaussian", 
+                  type.measure = "mse")
+#Get the LOOCV error of the model
+err = min(mod$cvm)
+#Get the features selected by the model
+nzc = extract_nzc(mod, lm=mod$lambda.min, family="gaussian")
+
+#Subset the data to only the selected features
+train_df = train_df %>% select(one_of(c(nzc, "y")))
+#Build 2nd model using the selected features
+mod2 <- lm(y ~ ., data = train_df)
+#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
+r2 <- summary(mod2)$r.square
+r2adj = summary(mod2)$adj.r.squared
+
+#Subset the entire table to only the selected features
+test_df = df %>% select(one_of(nzc))
+#Use the 2nd model to predict on all samples
+pred = predict(
+            mod2,
+            test_df) %>%
+            as.data.frame() %>%
+    rownames_to_column(var="sample_id") %>%
+    rename("pred"=".")
+title = paste("OC risk predictions(Lasso)",
+              "\nLOOCV error =", err,"\nR2 =",r2, "\nR2adj =", r2adj)
+
+#Make boxplot
+p = make_boxplot(pred, ann_df, x = "brca_status", y = "pred", 
+                 title=title) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
+print(p)
+
+## To seeing the data in plotting the boxplot behind the scene
+box_plot_data <- inner_join(pred, ann_df, by = join_by(sample_id))
+```
+
+
+
+
+## ##################   Logistic Regression.    ##############################
+```{r}
+#Get table of samples used to build model
+train_df2 = df[(rownames(df) %in% train_samples),]
+#Get sample labels
+y2 = ann_df %>% slice(match(rownames(train_df2), sample_id)) %>%
+    pull(score)
+
+#Add column contianing the labels to table
+train_df2$y2 = as.factor(y2)
+test_df2 = df
+
+# Convert predictors (features) to a matrix
+X2 <- as.matrix(train_df2[, -which(names(train_df2) == "y2")])
+
+
+# Logistic regression model
+logit_model <- glmnet(X2, y2, 
+                   family = binomial, alpha = 1)
+
+
+# Predict on test data
+predictions2 <- predict(logit_model, newx = as.matrix(test_df2), type = "response")
+predictions2_train_df2 <- predict(logit_model, newx = X2, type = "response")
+
+# Convert probabilities to class labels (threshold 0.5)
+pred_class2 <- ifelse(predictions2 > 0.5, 1, 0)
+pred_class2 <- pred_class2[, ncol(pred_class2)]
+pred_class_train_df2 <- ifelse(predictions2_train_df2 > 0.5, 1, 0)
+pred_class_train_df2 <- as.vector(pred_class_train_df2[, ncol(pred_class_train_df2)])
+
+# Evaluate the model
+#confusionMatrix(factor(pred_class), factor(test_df$Species))
+confusionMatrix(factor(pred_class_train_df2), train_df2$y2)
+
+
+pred2 = as.data.frame(predictions2[,ncol(predictions2)]) %>%
+    rownames_to_column(var="sample_id") %>% rename(pred = "predictions2[, ncol(predictions2)]")
+title = paste("OC risk predictions(Logistic)",
+              "\nAccuracy =",100, "\nerror =", logit_model$jerr)
+
+#Make boxplot
+p = make_boxplot(pred2, ann_df, x = "brca_status", y = "pred", 
+                 title=title) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
+print(p)
+
+# plot data
+box2_plot_data <- inner_join(pred2, ann_df, by = join_by(sample_id))
+```
+
+
+
+
+
+## ##################   Decision Tree Model   ################### 
+```{r}
+#Get table of samples used to build model
+train_df3 = df[(rownames(df) %in% train_samples),]
+#Get sample labels
+y3 = ann_df %>% slice(match(rownames(train_df3), sample_id)) %>%
+    pull(score)
+#Add column contianing the labels to table
+train_df3$y3 = as.factor(y3)
+test_df3 = df
+
+#Get table of samples used to build model
+test_samples3 = ann_df %>% filter(is.na(score)) %>% pull(sample_id)
+test_df3b = df[(rownames(df) %in% test_samples3),]
+
+
+# Train the decision tree model
+tree_model <- rpart(train_df3$y3~., 
+                    data = train_df3[,1:ncol(train_df3)-1], 
+                    method = "class")  # 'class' for classification
+
+# Summary of the model (prints the decision tree)
+print(tree_model)
+
+# Visualize the decision tree
+rpart.plot(tree_model, type = 2, extra = 102, fallen.leaves = TRUE)
+
+# Predict on test data
+predictions3 <- predict(tree_model, newdata = test_df3, type = "class")
+predictions3b <- predict(tree_model, newdata = test_df3b, type = "class")
+predictions_train_df3 <- predict(tree_model, newdata = train_df3, type = "class")
+
+# Evaluate the model with a confusion matrix
+confusionMatrix(predictions_train_df3, train_df3$y3)
+```
+
+
+
+
+```{r}
+print(as.data.frame( tree_model$variable.importance))
+
+# Plot the variable importance
+barplot(tree_model$variable.importance,
+        main = "Variable Importance from Decision Tree",
+        xlab = "Features",
+        ylab = "Importance",
+        col = "steelblue",
+        horiz = FALSE,
+        las = 2)  # Rotate axis labels for better readability
+```
+
+
+## lm for Tree Decision selected variables
+```{r}
+#Get the LOOCV error of the model
+err3 = min(tree_model$cptable[,3])
+#Get the features selected by the model
+nzc3 = names(tree_model$variable.importance)
+
+#Subset the data to only the selected features
+train_df3 = train_df3 %>% select(one_of(c(nzc3, "y3")))
+train_df3$y3 <- as.numeric(as.character(train_df3$y3))
+#Build 2nd model using the selected features
+lm_model3 <- lm(y3 ~ ., data = train_df3)
+#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
+r2 <- summary(lm_model3)$r.square
+r2adj = summary(lm_model3)$adj.r.squared
+
+#Subset the entire table to only the selected features
+test_df3 = df %>% select(one_of(nzc3))
+#Use the 2nd model to predict on all samples
+pred3 = predict(
+            lm_model3,
+            test_df3) %>%
+            as.data.frame() %>%
+    rownames_to_column(var="sample_id") %>%
+    rename("pred"=".")
+title = paste("OC risk predictions(DT)",
+              "\nLOOCV error =", err3, "\nR2 =",r2, "\nR2adj =", r2adj)
+
+#Make boxplot
+p = make_boxplot(pred3, ann_df, x = "brca_status", y = "pred", 
+                 title=title) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
+print(p)
+
+# plot data
+box3_plot_data <- inner_join(pred3, ann_df, by = join_by(sample_id))
+```
+
+
+
+## #################    PCA   ###################
+```{r }
+# library(ggbiplot)
+#Get table of samples used to build model
+train_df4 = df[(rownames(df) %in% train_samples),]
+y4 = ann_df %>% slice(match(rownames(train_df4), sample_id)) %>%
+    pull(score)  #Get sample labels
+train_df4$y4 = as.factor(y4)    #Add column contianing the labels to table
+test_df4 = df
+
+# PCA
+pc_train_df <- prcomp(train_df4[,1:ncol(train_df4)-1],
+             center = TRUE,
+             scale. = TRUE)
+print(pc_train_df)
+summary(pc_train_df)
+plot(pc_train_df, type = "lines")
+
+# Bi-Plot
+g <- ggbiplot(pc_train_df, 
+              obs.scale = 1, 
+              var.scale = 1, 
+              groups = train_df4$y4, 
+              ellipse = TRUE, 
+              circle = TRUE,
+              varname.abbrev = TRUE,
+              var.factor = 2,
+              varname.size = 0,
+              ellipse.prob = 0.90)
+g <- g + scale_color_discrete(name = '')
+g <- g + theme(legend.direction = 'horizontal', 
+               legend.position = 'top')
+print(g)
+```
+
+
+
+```{r}
+# Prediction with Principal Components
+pc_train4_pred <- predict(pc_train_df, train_df4)
+pc_train4_pred <- data.frame(pc_train4_pred, y4=as.numeric(as.character(
+  train_df4[,ncol(train_df4)])))
+pc_test4_pred <- predict(pc_train_df, test_df4)
+pc_test4_pred <- data.frame(pc_test4_pred)
+
+# Select only the desired features and target
+subset_train_df10 <- pc_train4_pred %>%
+  select(y4, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10)
+
+subset_train_df35 <- pc_train4_pred %>%
+  select(y4, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10,
+         PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20,
+         PC21, PC22, PC23, PC24, PC25, PC26, PC27, PC28, PC29, PC30,
+         PC31, PC32, PC33, PC34, PC35)
+
+subset_test_df10 <- pc_test4_pred %>%
+  select(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10)
+
+subset_test_df35 <- pc_test4_pred %>%
+  select(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10,
+         PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20,
+         PC21, PC22, PC23, PC24, PC25, PC26, PC27, PC28, PC29, PC30,
+         PC31, PC32, PC33, PC34, PC35)
+
+
+# Fit the model for the first 10 PC's
+lm_model4 <- lm(y4 ~ ., data = subset_train_df10)
+#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
+r2 <- summary(lm_model4)$r.square
+r2adj = summary(lm_model4)$adj.r.squared
+
+
+#Use the 2nd model to predict on all samples
+pred4 = predict(
+            lm_model4,
+            subset_test_df10) %>%
+            as.data.frame() %>%
+    rownames_to_column(var="sample_id") %>%
+    rename("pred"=".")
+title = paste("OC risk predictions(PC1-10)", "\n72% Var. Exp",
+               "\nR2 =",r2, "\nR2adj =", r2adj)
+
+#Make boxplot
+p = make_boxplot(pred4, ann_df, x = "brca_status", y = "pred", 
+                 title=title) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
+print(p)
+# plot data
+box4a_plot_data <- inner_join(pred4, ann_df, by = join_by(sample_id))
+
+
+# Fit the model for the first 35 PC's
+lm_model4 <- lm(y4 ~ ., data = subset_train_df35)
+#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
+r2 <- summary(lm_model4)$r.square
+r2adj = summary(lm_model4)$adj.r.squared
+
+
+#Use the 2nd model to predict on all samples
+pred4 = predict(
+            lm_model4,
+            subset_test_df35) %>%
+            as.data.frame() %>%
+    rownames_to_column(var="sample_id") %>%
+    rename("pred"=".")
+title = paste("OC risk predictions(PC1-35)", "\n94% Var. Exp",
+               "\nR2 =",r2, "\nR2adj =", r2adj)
+
+#Make boxplot
+p = make_boxplot(pred4, ann_df, x = "brca_status", y = "pred", 
+                 title=title) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
+print(p)
+
+# plot data
+box4b_plot_data <- inner_join(pred4, ann_df, by = join_by(sample_id))
+```
+
+
+```{r}
+models_pred <- data.frame(box_plot_data[,1:2],
+                                DT_pred=box3_plot_data[,2],
+                                pc1_10_pred=box4a_plot_data[,2],
+                                pc1_35_pred=box4b_plot_data[,2],
+                                Logst_pred=box2_plot_data[,2],
+                                box_plot_data[3:4])
+models_pred <- models_pred %>%rename(Lasso_pred = pred)
+FH.b4_models_pred <- models_pred %>% filter(brca_status == "FH.b4")
+
+# Line graph to comparison of predictions base on each models
+matplot(t(FH.b4_models_pred[2:6]), type = "b", pch = 16, lty = 1, col = 1:10, xaxt = "n", xlab = "Columns", ylab = "predictions", 
+        main = "Line Graph for FH.b4 model's preditions")
+axis(1, at = 1:5, labels = colnames(FH.b4_models_pred)[2:6])
+legend("topright", legend = FH.b4_models_pred$sample_id, col = 1:10, lty = 1, pch = 16, cex = 0.8)
+
+
+# Line graph to comparison of predictions base on each models without legend
+matplot(t(FH.b4_models_pred[2:6]), type = "b", pch = 16, lty = 1, col = 1:10, xaxt = "n", xlab = "Columns", ylab = "predictions", 
+        main = "Line Graph for FH.b4 model's preditions")
+axis(1, at = 1:5, labels = colnames(FH.b4_models_pred)[2:6])
+```
+
+
+## #################    PCA with Lasso selected variables   ###################
+```{r }
+library(ggbiplot)
+#Get table of samples used to build model
+train_df5 = train_df
+test_df5 = df
+
+# PCA
+pc_train_df2 <- prcomp(train_df5[,1:ncol(train_df5)-1],
+             center = TRUE,
+             scale. = TRUE)
+print(pc_train_df2)
+summary(pc_train_df2)
+plot(pc_train_df2, type = "lines")
+
+# Bi-Plot
+g <- ggbiplot(pc_train_df2, 
+              obs.scale = 1, 
+              var.scale = 1, 
+              groups = as.factor(train_df5$y), 
+              ellipse = TRUE, 
+              circle = TRUE,
+              varname.abbrev = TRUE,
+              var.factor = 2,
+              varname.size = 3,
+              ellipse.prob = 0.95)
+g <- g + scale_color_discrete(name = '')
+g <- g + theme(legend.direction = 'horizontal', 
+               legend.position = 'top')
+print(g)
+```
+
+
+```{r}
+# Prediction with Principal Components
+pc_train4_pred <- predict(pc_train_df, train_df4)
+pc_train4_pred <- data.frame(pc_train4_pred, y4=as.numeric(as.character(
+  train_df4[,ncol(train_df4)])))
+pc_test4_pred <- predict(pc_train_df, test_df4)
+pc_test4_pred <- data.frame(pc_test4_pred)
+
+# Select only the desired features and target
+subset_train_df10 <- pc_train4_pred %>%
+  select(y4, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10)
+
+subset_train_df35 <- pc_train4_pred %>%
+  select(y4, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10,
+         PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20,
+         PC21, PC22, PC23, PC24, PC25, PC26, PC27, PC28, PC29, PC30,
+         PC31, PC32, PC33, PC34, PC35)
+
+subset_test_df10 <- pc_test4_pred %>%
+  select(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10)
+
+subset_test_df35 <- pc_test4_pred %>%
+  select(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10,
+         PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20,
+         PC21, PC22, PC23, PC24, PC25, PC26, PC27, PC28, PC29, PC30,
+         PC31, PC32, PC33, PC34, PC35)
+
+
+# Fit the model for the first 10 PC's
+lm_model4 <- lm(y4 ~ ., data = subset_train_df10)
+#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
+r2 <- summary(lm_model4)$r.square
+r2adj = summary(lm_model4)$adj.r.squared
+
+
+#Use the 2nd model to predict on all samples
+pred4 = predict(
+            lm_model4,
+            subset_test_df10) %>%
+            as.data.frame() %>%
+    rownames_to_column(var="sample_id") %>%
+    rename("pred"=".")
+title = paste("OC risk predictions(PC1-10)", "\n72% Var. Exp",
+               "\nR2 =",r2, "\nR2adj =", r2adj)
+
+#Make boxplot
+p = make_boxplot(pred4, ann_df, x = "brca_status", y = "pred", 
+                 title=title) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
+print(p)
+# plot data
+box4a_plot_data <- inner_join(pred4, ann_df, by = join_by(sample_id))
+
+
+# Fit the model for the first 35 PC's
+lm_model4 <- lm(y4 ~ ., data = subset_train_df35)
+#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
+r2 <- summary(lm_model4)$r.square
+r2adj = summary(lm_model4)$adj.r.squared
+
+
+#Use the 2nd model to predict on all samples
+pred4 = predict(
+            lm_model4,
+            subset_test_df35) %>%
+            as.data.frame() %>%
+    rownames_to_column(var="sample_id") %>%
+    rename("pred"=".")
+title = paste("OC risk predictions(PC1-35)", "\n94% Var. Exp",
+               "\nR2 =",r2, "\nR2adj =", r2adj)
+
+#Make boxplot
+p = make_boxplot(pred4, ann_df, x = "brca_status", y = "pred", 
+                 title=title) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
+print(p)
+
+# plot data
+box4b_plot_data <- inner_join(pred4, ann_df, by = join_by(sample_id))
+```
+
+
+
+```{r}
+
+
+```
+
+
+
+```{r}
+
+
+```
+
+
+
+```{r}
+
+
+```
+
+
+
+```{r}
+
+
+```
+
+
+
+

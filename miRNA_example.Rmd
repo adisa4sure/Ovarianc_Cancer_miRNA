@@ -1,0 +1,29 @@
+---
+title: "miRNA_example1"
+author: "Saheed Adisa Ganiyu"
+date: "2024-09-06"
+output: pdf_document
+---
+
+
+# We have the following miRNA-sequencing datasets:
+
+## blood_oc_merged_raw_summed.rds:
+1. healthy controls
+2. ovarian cancer patients - different stages (i.e. I/II and III/IV) and tumor types (i.e. serous and clear cell)
+
+## batch4_raw_summed.rds:
+1. healthy controls
+2. patients at high risk (HR) for developing ovarian cancer (based on either family history or BRCA mutation)
+
+Here, we build a model using the healthy controls and ovarian cancer samples from the 1st dataset and healthy controls from the 2nd dataset.
+
+```{r }
+#Load in file with necessary functions/packages
+source("miRNAFunctions.R")
+```
+
+
+```{r }
+
+```
