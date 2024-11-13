@@ -26,12 +26,30 @@ source("miRNAFunctions.R")
 ```{r }
 #Subset the 1st dataset to only the samples we want
 
-#Load in the raw miRNA-seq data
-df = readRDS("blood_oc_merged_raw_summed.rds")
+# URL of the RDS file on GitHub
+url1 <- "https://github.com/adisa4sure/Ovarianc_Cancer_miRNA/raw/refs/heads/main/blood_oc_merged_raw_summed.rds"
+temp_file <- tempfile(fileext = ".rds")
+download.file(url1, temp_file, mode = "wb")
+
+# Check if the file size is greater than zero
+if (file.size(temp_file) > 0) {
+  # Read the RDS file from the temporary file
+  df <- readRDS(temp_file)
+} else {
+  stop("Download failed: The file is empty.")
+}
+unlink(temp_file)   # Clean up by removing the temporary file
+
 
 #Load in the labels for the samples
+url2 <- "https://github.com/adisa4sure/Ovarianc_Cancer_miRNA/raw/refs/heads/main/blood_oc_full_ann.rds"
+temp_file2 <- tempfile(fileext = ".rds")
+download.file(url2, temp_file2, mode = "wb")
 #The "Run" column corresponds to the columns in the previous
-ann_df = readRDS("blood_oc_full_ann.rds") %>% filter(Run %in% colnames(df))
+ann_df <- readRDS(temp_file2) %>% filter(Run %in% colnames(df))
+unlink(temp_file2)
+
+#ann_df = readRDS("blood_oc_full_ann.rds") %>% filter(Run %in% colnames(df))
 
 #Get the IDs for the samples we want
 #In this case, we only want the Stage I/II and Stage III/IV serous adenocarcinoma samples from the PMP dataset and healthy samples from the NECC dataset
@@ -54,9 +72,17 @@ saveRDS(df, "I_IV_serous_raw.rds")
 
 #Load in file with sample metadata
 batch4_summary = data.table::fread("batch4_summary.csv")
+
 #Load in sample labels
-ann = readRDS("/home/saheed/Desktop/Arizona_Courses/2024_2025/Fall_2024/Indep_Study_2024Fall/OC_miRNA/b1b4_ann_with_brca.rds") %>%
-    select(sample_id, brca_status)
+url3 <- "https://github.com/adisa4sure/Ovarianc_Cancer_miRNA/raw/refs/heads/main/b1b4_ann_with_brca.rds"
+temp_file3 <- tempfile(fileext = ".rds")
+download.file(url3, temp_file3, mode = "wb")
+#The "Run" column corresponds to the columns in the previous
+ann <- readRDS(temp_file3) %>% select(sample_id, brca_status)
+unlink(temp_file3)
+
+#ann = readRDS("/home/saheed/Desktop/Arizona_Courses/2024_2025/Fall_2024/Indep_Study_2024Fall/OC_miRNA/b1b4_ann_with_brca.rds") %>% select(sample_id, brca_status)
+
 #Get top 10 highest seq-depth samples for healthy controls
 lr_samples = inner_join(batch4_summary, ann, by="sample_id") %>%
     filter(Condition=="LR") %>%
@@ -80,7 +106,14 @@ other_samples = ann %>% filter(brca_status=="Other") %>% pull(sample_id)
 samples = c(lr_samples, hr_samples, fh_samples, other_samples)
 
 #Load in raw miRNA-seq data
-df = readRDS("batch4_raw_summed.rds")
+url4 <- "https://github.com/adisa4sure/Ovarianc_Cancer_miRNA/raw/refs/heads/main/batch4_raw_summed.rds"
+temp_file4 <- tempfile(fileext = ".rds")
+download.file(url4, temp_file4, mode = "wb")
+#The "Run" column corresponds to the columns in the previous
+df <- readRDS(temp_file4)
+unlink(temp_file4) 
+#df = readRDS("batch4_raw_summed.rds")
+
 #Subset the samples, save as RDS file
 df = df %>% select(one_of(samples))
 saveRDS(df, "batch4_top10_raw.rds")
@@ -88,7 +121,13 @@ saveRDS(df, "batch4_top10_raw.rds")
 
 
 ```{r }
-df = readRDS("batch4_raw_summed.rds")
+url4 <- "https://github.com/adisa4sure/Ovarianc_Cancer_miRNA/raw/refs/heads/main/batch4_raw_summed.rds"
+temp_file4 <- tempfile(fileext = ".rds")
+download.file(url4, temp_file4, mode = "wb")
+#The "Run" column corresponds to the columns in the previous
+df <- readRDS(temp_file4)
+unlink(temp_file4) 
+#df = readRDS("batch4_raw_summed.rds")
 df
 ```
 
@@ -310,6 +349,7 @@ box_plot_data <- inner_join(pred, ann_df, by = join_by(sample_id))
 
 
 ## ##################   Logistic Regression.    ##############################
+
 ```{r}
 #Get table of samples used to build model
 train_df2 = df[(rownames(df) %in% train_samples),]
@@ -323,16 +363,101 @@ test_df2 = df
 
 # Convert predictors (features) to a matrix
 X2 <- as.matrix(train_df2[, -which(names(train_df2) == "y2")])
+```
 
 
-# Logistic regression model
-logit_model <- glmnet(X2, y2, 
-                   family = binomial, alpha = 1)
+
+
+```{r}
+###### Cross validation on range of lambda \in (0,1) of length 100, while setting alpha = 0.5
+set.seed(124)
+t.cv <- 
+
+
+logit_modelcv_lambda <- cv.glmnet(X2, y2, family = "binomial", type.measure = "class", alpha=0.5)
+plot(logit_modelcv_lambda)
+cat("min.cv.error:", min(logit_modelcv_lambda$cvm), "\nlambda of min.error:", logit_modelcv_lambda$lambda.min)
+```
+
+
+
+```{r}
+####### Cross validation on range of alpha \in (0,1) of length 20, while setting lambda to default
+logistic10cv <- function(data, alphas, num_folds = 10, seed = 124) {
+  set.seed(seed)
+  data <- data[sample(nrow(data)), ]  # Shuffle the data
+  
+  # Split data into 10 folds
+  fold_size <- floor(nrow(data) / num_folds)
+  folds <- split(data, rep(1:num_folds, each = fold_size, length.out = nrow(data)))
+  
+  # Prepare to store CV errors
+  cv_errors <- matrix(0, nrow = length(alphas), ncol = num_folds)
+  
+  for (i in 1:num_folds) {
+    # Create training and validation sets
+    validation_data <- folds[[i]]
+    training_data <- do.call(rbind, folds[-i])
+    
+    # Separate features and labels
+    X_train <- as.matrix(training_data[, -ncol(training_data)])
+    y_train <- as.factor(training_data$y)
+    X_val <- as.matrix(validation_data[, -ncol(validation_data)])
+    y_val <- as.factor(validation_data$y)
+    
+    for (j in 1:length(alphas)) {
+      alpha_val <- alphas[j]
+      
+      # Fit logistic regression with specified alpha
+      logit_model <- glmnet(X_train, y_train, family = binomial, alpha = alpha_val)
+      
+      # Predict probabilities on validation set
+      val_predictions <- predict(logit_model, newx = X_val, type = "response")
+      
+      # Convert probabilities to class labels (threshold 0.5)
+      pred_class <- ifelse(val_predictions > 0.5, 1, 0)
+      pred_class <- as.vector(pred_class[, ncol(pred_class)])  # Select the last column
+      
+      # Calculate error rate for the current fold
+      cv_errors[j, i] <- mean(pred_class != as.numeric(y_val) - 1)
+    }
+  }
+  
+  # Calculate mean CV errors and standard errors for each alpha
+  mean_cv_errors <- rowMeans(cv_errors)
+  std_errors <- apply(cv_errors, 1, sd) / sqrt(num_folds)
+  
+  return(list(alphas = alphas, mean_cv_errors = mean_cv_errors, std_errors = std_errors))
+}
+
+# Define a range of alpha values to test
+alphas <- seq(0, 1, by = 0.1)
+
+# Perform 10-fold cross-validation for different alpha values
+cv_results <- logistic10cv(train_df2, alphas)
+
+# Plot the 10-fold CV error curve with standard error bars
+plot(cv_results$alphas, cv_results$mean_cv_errors, type = "b", pch = 19, xlab = "alpha", ylab = "10-Fold CV Error",
+     main = "10-Fold CV Error Curve for Logistic Regression")
+segments(cv_results$alphas, cv_results$mean_cv_errors - cv_results$std_errors,
+         cv_results$alphas, cv_results$mean_cv_errors + cv_results$std_errors, col = "blue")
+legend("topright", legend = "CV Error +/- 1 SE", col = "blue", lty = 1, pch = 19)
+
+data.frame(cv_results)
+```
+
+
+
+
+```{r}
+# Normal Logistic regression model
+logit_model2 <- glmnet(X2, y2, 
+                   family = binomial, lambda =0.004,  alpha = 1)
 
 
 # Predict on test data
-predictions2 <- predict(logit_model, newx = as.matrix(test_df2), type = "response")
-predictions2_train_df2 <- predict(logit_model, newx = X2, type = "response")
+predictions2 <- predict(logit_model2, newx = as.matrix(test_df2), type = "response")
+predictions2_train_df2 <- predict(logit_model2, newx = X2, type = "response")
 
 # Convert probabilities to class labels (threshold 0.5)
 pred_class2 <- ifelse(predictions2 > 0.5, 1, 0)
@@ -348,7 +473,7 @@ confusionMatrix(factor(pred_class_train_df2), train_df2$y2)
 pred2 = as.data.frame(predictions2[,ncol(predictions2)]) %>%
     rownames_to_column(var="sample_id") %>% rename(pred = "predictions2[, ncol(predictions2)]")
 title = paste("OC risk predictions(Logistic)",
-              "\nAccuracy =",100, "\nerror =", logit_model$jerr)
+              "\nAccuracy =",100, "\nerror =", logit_model2$jerr)
 
 #Make boxplot
 p = make_boxplot(pred2, ann_df, x = "brca_status", y = "pred", 
@@ -359,7 +484,6 @@ print(p)
 # plot data
 box2_plot_data <- inner_join(pred2, ann_df, by = join_by(sample_id))
 ```
-
 
 
 
@@ -717,8 +841,13 @@ box4b_plot_data <- inner_join(pred4, ann_df, by = join_by(sample_id))
 
 
 ```{r}
+# Plot of CV error of each model
+cv_error_plot_data <- c(min(logit_modelcv_lambda$cvm), err3,err)
+x_labels <- c("Logistic", "DT", "Lasso")
+plot(cv_error_plot_data,type = "b", pch = 19, xaxt = "n", ylab = "Y Values", xlab = "Custom X Axis", main = "CV Error of Each Model")
 
-
+# Add custom x-axis with character labels
+axis(1, at = 1:length(x_labels), labels = x_labels)
 ```
 
 
