@@ -4,9 +4,19 @@ format: html
 editor: visual
 ---
 
-`miRNAFunctions.R` --> has necessary functions for the initial model and the tpm normalization.
+`miRNAFunctions.R` --> has necessary functions for the initial model and the tpm normalization.  
 
-`blood_oc_merged_raw_summed.RDS`--> contains data related to microRNA (miRNA) expression levels across different samples.
+`blood_oc_merged_raw_summed.RDS`--> contains data related to microRNA (miRNA) expression levels across different samples.  
 
-`blood_oc_full_ann.RDS` --> contains annotations
+`blood_oc_full_ann.RDS` --> contains annotations for the previous RDS file  
+
+Above 2 RDS files were joined and Necessary samples (healthy-NECC vs diseased-stage 3/4) were filtered and saved as `I_IV_serous_raw.rds`  
+
+
+
+
+
+
+
+
 
