@@ -14,39 +14,30 @@ editor: visual
 
 Above 2 RDS files were joined and Necessary samples (healthy-NECC vs diseased-stage 3/4) were filtered and saved as `I_IV_serous_raw.rds`
 
+Now, a second combination of two files, `batch4_summary.csv` and `b1b4_ann_with_brca.rds` are filtered to obtain top 10 "seq-depth" samples each from 4 categories viz. `LR` (healthy controls), `BRCA` (high risk), `FH` (high risk-family history), `Other` (high risk based on other factors)\
+HOWEVER, (due to potential overlap) there are 35 Sample IDs (instead of 40)!
 
-Now, a second combination of two files, `batch4_summary.csv` and `b1b4_ann_with_brca.rds` are filtered to obtain top 10 "seq-depth" samples each from 4 categories viz. `LR` (healthy controls), `BRCA` (high risk), `FH` (high risk-family history), `Other` (high risk based on other factors)  
-HOWEVER, (due to potential overlap) there are 35 Sample IDs (instead of 40)!  
+The miRNA expression levels of these 35 samples were mapped using the `batch4_raw_summed.rds`, creating new dataframe `batch4_top10_raw.rds`
 
+So, we have 2 dataframes -
 
-The miRNA expression levels of these 35 samples were mapped using the `batch4_raw_summed.rds`, creating new dataframe `batch4_top10_raw.rds`  
-
-So, we have 2 dataframes -  
-
-`I_IV_serous_raw.rds` --> 2656 x 45  
-`batch4_top10_raw.rds` --> 2656 x 35  
-
+`I_IV_serous_raw.rds` --\> 2656 x 45\
+`batch4_top10_raw.rds` --\> 2656 x 35
 
 ## Normalization
 
-After TPM normalization, we have,  
-`I_IV_serous_norm.rds` --> 431 x 45  
-`batch4_norm` --> 488 x 45 
-(The dractic reduction in the no. of rows here is because of filtering miRNA that pass the low-expression filter)  
-
+After TPM normalization, we have,\
+`I_IV_serous_norm.rds` --\> 431 x 45\
+`batch4_norm` --\> 488 x 45 (The dractic reduction in the no. of rows here is because of filtering miRNA that pass the low-expression filter)
 
 ## Removing batch effects
 
-After adjusting for batch effects using the custom run_ComBat(), the two datasets are merged to form `b4_oc_combat.rds` --> 403 x 80
-
+After adjusting for batch effects using the custom run_ComBat(), the two datasets are merged to form `b4_oc_combat.rds` --\> 403 x 80
 
 ## Modelling
 
 Creating annotation for modelling - healthy (score = 0), cancer‐positive (score = 1) based on prevoius annotation RDS files
 
-
 LASSO + Linear Regression Model
 
 Logistic Regression Modeling
-
-
