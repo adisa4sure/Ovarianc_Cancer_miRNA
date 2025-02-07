@@ -25,7 +25,12 @@ if (!require("pacman"))
   install.packages("pacman")
 
 
-pacman::p_load(sva)
+pacman::p_load(sva,
+               glmnet,
+               caret,
+               rpart.plot,
+               randomForest,
+               ggbiplot)
 
 ```
 
