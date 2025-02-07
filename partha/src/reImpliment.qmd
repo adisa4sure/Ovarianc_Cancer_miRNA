@@ -18,7 +18,6 @@ editor: visual
 
 Here, we build a model using the healthy controls and ovarian cancer samples from the 1st dataset and healthy controls from the 2nd dataset.
 
-
 ```{r}
 
 if (!require("pacman")) 
@@ -33,8 +32,6 @@ pacman::p_load(sva,
                ggbiplot)
 
 ```
-
-
 
 ```{r }
 #Load in file with necessary functions/packages
