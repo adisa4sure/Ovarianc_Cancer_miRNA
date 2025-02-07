@@ -29,7 +29,8 @@ pacman::p_load(sva,
                caret,
                rpart.plot,
                randomForest,
-               ggbiplot)
+               ggbiplot,
+               tidyverse)
 
 ```
 
@@ -78,14 +79,14 @@ samples = c(pmp_samples, healthy_samples)
 
 #Subset the miRNA seq columns to only the samples we want, and save it as an RDS file
 df = df %>% select(one_of(samples))
-saveRDS(df, "I_IV_serous_raw.rds")
+saveRDS(df, "../res/I_IV_serous_raw.rds")
 ```
 
 ```{r }
 #Subset the 2nd dataset to only samples we want
 
 #Load in file with sample metadata
-batch4_summary = data.table::fread("batch4_summary.csv")
+batch4_summary = data.table::fread("../data/batch4_summary.csv")
 
 #Load in sample labels
 url3 <- "https://github.com/adisa4sure/Ovarianc_Cancer_miRNA/raw/refs/heads/main/b1b4_ann_with_brca.rds"
@@ -130,7 +131,7 @@ unlink(temp_file4)
 
 #Subset the samples, save as RDS file
 df = df %>% select(one_of(samples))
-saveRDS(df, "batch4_top10_raw.rds")
+saveRDS(df, "../res/batch4_top10_raw.rds")
 ```
 
 ```{r }
@@ -169,7 +170,7 @@ Log scale the TPM-normalized counts because very large counts negatively affect 
 #Normalize and filter the 1st dataset
 
 #Load in subsetted counts
-df = readRDS("I_IV_serous_raw.rds")
+df = readRDS("../res/I_IV_serous_raw.rds")
 #Normalize with transcripts per million (TPM)
 tpm_df = df %>% tpm(gene.length = rep(.022, nrow(df))) %>% as.data.frame() 
 #Get miRNA that pass the low-expression filter
@@ -179,14 +180,14 @@ tpm_df = tpm_df[genes,]
 #Log scale
 log_df = log(tpm_df+1)
 #Save normalized counts to RDS file
-saveRDS(log_df, "I_IV_serous_norm.rds")        
+saveRDS(log_df, "../res/I_IV_serous_norm.rds")        
 ```
 
 ```{r }
 #Normalize and filter the 2nd dataset
 
 #Load in subsetted counts
-df = readRDS("batch4_top10_raw.rds")
+df = readRDS("../res/batch4_top10_raw.rds")
 #Normalize with transcripts per million (TPM)
 tpm_df = df %>% tpm(gene.length = rep(.022, nrow(df))) %>% as.data.frame() 
 #Get miRNA that pass the low-expression filter
@@ -196,7 +197,7 @@ tpm_df = tpm_df[genes,]
 #Log scale
 log_df = log(tpm_df+1)
 #Save normalized counts to RDS file
-saveRDS(log_df, "batch4_norm.rds") 
+saveRDS(log_df, "../res/batch4_norm.rds") 
 ```
 
 ### 3. Remove batch effects
@@ -209,11 +210,11 @@ It returns a list of counts tables with the batch effects removed
 
 ```{r }
 #Load in the normalized counts tables
-oc_df = readRDS("I_IV_serous_norm.rds") %>% rownames_to_column(var="Geneid")
-b4_df = readRDS("batch4_norm.rds") %>% rownames_to_column(var="Geneid")
+oc_df = readRDS("../res/I_IV_serous_norm.rds") %>% rownames_to_column(var="Geneid")
+b4_df = readRDS("../res/batch4_norm.rds") %>% rownames_to_column(var="Geneid")
 
 #Load in the combined sample labels, change the Dataset column to reflect the batch
-ann_df = readRDS("b1b4OC_ann_full.rds") %>% mutate(Dataset=case_when(Dataset != "b1" & Dataset != "b4" ~"OC",
+ann_df = readRDS("../data/b1b4OC_ann_full.rds") %>% mutate(Dataset=case_when(Dataset != "b1" & Dataset != "b4" ~"OC",
                                                                TRUE ~Dataset))
 
 #Remove batch effect using the run_ComBat() function
@@ -221,7 +222,7 @@ out = run_ComBat(list(b4_df, oc_df), ann_df, batch_col = "Dataset")
 #Combine the output list of dataframes
 out_df = bind_rows(out) %>% t() %>% as.data.frame()
 #Save combined file as RDS
-saveRDS(out_df, "b4_oc_combat.rds")
+saveRDS(out_df, "../res/b4_oc_combat.rds")
 ```
 
 ### 4. Build model
