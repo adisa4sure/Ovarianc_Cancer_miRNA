@@ -8,20 +8,21 @@ css: style.css
 
 execute: 
   echo: false
+  warning: false
 ---
 
-## Objective
+# Objective
 
--- To predict ovarian cancer risk using miRNA expression profiles.
+<center>To predict ovarian cancer risk using miRNA expression profiles</center>
 
 ## Work done so far...
 
--- Preprocessed the RAW and Annotated datasets\
--- Implented TPM Normalization\
--- Built an initial LASSO linear regression model using glmnet and performed LOOCV\
--- Extracted the most informative features (using LASSO)\
--- Rebuilt a linear model with these selected features\
--- Extended this approach to logistic regression, decision trees, and PCA for comparison
+- Preprocessed the RAW and Annotated datasets\
+- Implented TPM Normalization\
+- Built an initial LASSO linear regression model using glmnet and performed LOOCV\
+- Extracted the most informative features (using LASSO)\
+- Rebuilt a linear model with these selected features\
+- Extended this approach to logistic regression, decision trees, and PCA for comparison
 
 ```{r}
 
@@ -49,6 +50,8 @@ source("../miRNAFunctions.R")
 
 (Post data-preprocessing and TPM normalization)
 
+Dimensions - 403 x 80
+
 ```{r}
 data = readRDS("../../res/b4_oc_combat.rds")
 head(data,7)
@@ -56,9 +59,14 @@ head(data,7)
 
 ## Lasso 
 
+* Selected important (13) features and trained the model  
+* Made predictions using the "FH.B4" group as test-set
+
+
+
 ::: panel-tabset
 
-### Plot
+
 ```{r }
 #Load in the labels for the 1st dataset
 oc_ann = readRDS("../../data/blood_oc_full_ann.rds")
@@ -86,6 +94,7 @@ ann_df = readRDS("../../data/b1b4OC_ann_full.rds") %>%
      
 ```
 
+### Features
 ```{r }
 #Load in the data
 df = readRDS("../../res/b4_oc_combat.rds") 
@@ -111,6 +120,21 @@ mod = build_model(xy=train_df, alpha=1,
 err = min(mod$cvm)
 #Get the features selected by the model
 nzc = extract_nzc(mod, lm=mod$lambda.min, family="gaussian")
+
+nzc
+```
+
+
+### Test-set (FH.B4)
+
+<img src="images/test_set.png"/>
+
+
+
+
+### Lasso-pred
+```{r}
+
 
 #Subset the data to only the selected features
 train_df = train_df %>% select(one_of(c(nzc, "y")))
@@ -142,147 +166,27 @@ print(p)
 box_plot_data <- inner_join(pred, ann_df, by = join_by(sample_id))
 ```
 
-### Selected Features
-```{r}
-nzc
-```
+
 :::
 
 
 
 ## Logistic Regression
 
+* Similar to Lasso, trained the model using important (13) features
+
 ::: panel-tabset
 
-```{r}
-#Get table of samples used to build model
-train_df2 = df[(rownames(df) %in% train_samples),]
-#Get sample labels
-y2 = ann_df %>% slice(match(rownames(train_df2), sample_id)) %>%
-    pull(score)
-
-#Add column contianing the labels to table
-train_df2$y2 = as.factor(y2)
-test_df2 = df
-
-# Convert predictors (features) to a matrix
-X2 <- as.matrix(train_df2[, -which(names(train_df2) == "y2")])
-```
+### Box-plot
+<img src="images/box_logistic.png"/>
 
 ### $\alpha$ = 0.5
-```{r}
-###### Cross validation on range of lambda \in (0,1) of length 100, while setting alpha = 0.5
-set.seed(124)
-t.cv <- 
-
-
-logit_modelcv_lambda <- cv.glmnet(X2, y2, family = "binomial", type.measure = "class", alpha=0.5)
-plot(logit_modelcv_lambda)
-cat("min.cv.error:", min(logit_modelcv_lambda$cvm), "\nlambda of min.error:", logit_modelcv_lambda$lambda.min)
-```
+<img src="images/alpha0.5.png"/>
 
 ### $\lambda$ (default)
-```{r}
-####### Cross validation on range of alpha \in (0,1) of length 20, while setting lambda to default
-logistic10cv <- function(data, alphas, num_folds = 10, seed = 124) {
-  set.seed(seed)
-  data <- data[sample(nrow(data)), ]  # Shuffle the data
-  
-  # Split data into 10 folds
-  fold_size <- floor(nrow(data) / num_folds)
-  folds <- split(data, rep(1:num_folds, each = fold_size, length.out = nrow(data)))
-  
-  # Prepare to store CV errors
-  cv_errors <- matrix(0, nrow = length(alphas), ncol = num_folds)
-  
-  for (i in 1:num_folds) {
-    # Create training and validation sets
-    validation_data <- folds[[i]]
-    training_data <- do.call(rbind, folds[-i])
-    
-    # Separate features and labels
-    X_train <- as.matrix(training_data[, -ncol(training_data)])
-    y_train <- as.factor(training_data$y)
-    X_val <- as.matrix(validation_data[, -ncol(validation_data)])
-    y_val <- as.factor(validation_data$y)
-    
-    for (j in 1:length(alphas)) {
-      alpha_val <- alphas[j]
-      
-      # Fit logistic regression with specified alpha
-      logit_model <- glmnet(X_train, y_train, family = binomial, alpha = alpha_val)
-      
-      # Predict probabilities on validation set
-      val_predictions <- predict(logit_model, newx = X_val, type = "response")
-      
-      # Convert probabilities to class labels (threshold 0.5)
-      pred_class <- ifelse(val_predictions > 0.5, 1, 0)
-      pred_class <- as.vector(pred_class[, ncol(pred_class)])  # Select the last column
-      
-      # Calculate error rate for the current fold
-      cv_errors[j, i] <- mean(pred_class != as.numeric(y_val) - 1)
-    }
-  }
-  
-  # Calculate mean CV errors and standard errors for each alpha
-  mean_cv_errors <- rowMeans(cv_errors)
-  std_errors <- apply(cv_errors, 1, sd) / sqrt(num_folds)
-  
-  return(list(alphas = alphas, mean_cv_errors = mean_cv_errors, std_errors = std_errors))
-}
-
-# Define a range of alpha values to test
-alphas <- seq(0, 1, by = 0.1)
-
-# Perform 10-fold cross-validation for different alpha values
-cv_results <- logistic10cv(train_df2, alphas)
-
-# Plot the 10-fold CV error curve with standard error bars
-plot(cv_results$alphas, cv_results$mean_cv_errors, type = "b", pch = 19, xlab = "alpha", ylab = "10-Fold CV Error",
-     main = "10-Fold CV Error Curve for Logistic Regression")
-segments(cv_results$alphas, cv_results$mean_cv_errors - cv_results$std_errors,
-         cv_results$alphas, cv_results$mean_cv_errors + cv_results$std_errors, col = "blue")
-legend("topright", legend = "CV Error +/- 1 SE", col = "blue", lty = 1, pch = 19)
-
-data.frame(cv_results)
-```
-
-### Box-plot
-```{r}
-# Normal Logistic regression model
-logit_model2 <- glmnet(X2, y2, 
-                   family = binomial, lambda =0.004,  alpha = 1)
+<img src="images/lambda_logistic.png"/>
 
 
-# Predict on test data
-predictions2 <- predict(logit_model2, newx = as.matrix(test_df2), type = "response")
-predictions2_train_df2 <- predict(logit_model2, newx = X2, type = "response")
-
-# Convert probabilities to class labels (threshold 0.5)
-pred_class2 <- ifelse(predictions2 > 0.5, 1, 0)
-pred_class2 <- pred_class2[, ncol(pred_class2)]
-pred_class_train_df2 <- ifelse(predictions2_train_df2 > 0.5, 1, 0)
-pred_class_train_df2 <- as.vector(pred_class_train_df2[, ncol(pred_class_train_df2)])
-
-# Evaluate the model
-#confusionMatrix(factor(pred_class), factor(test_df$Species))
-confusionMatrix(factor(pred_class_train_df2), train_df2$y2)
-
-
-pred2 = as.data.frame(predictions2[,ncol(predictions2)]) %>%
-    rownames_to_column(var="sample_id") %>% dplyr::rename(pred = "predictions2[, ncol(predictions2)]")
-title = paste("OC risk predictions(Logistic)",
-              "\nAccuracy =",100, "\nerror =", logit_model2$jerr)
-
-#Make boxplot
-p = make_boxplot(pred2, ann_df, x = "brca_status", y = "pred", 
-                 title=title) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
-print(p)
-
-# plot data
-box2_plot_data <- inner_join(pred2, ann_df, by = join_by(sample_id))
-```
 
 :::
 
@@ -290,397 +194,80 @@ box2_plot_data <- inner_join(pred2, ann_df, by = join_by(sample_id))
 
 ## Decision Tree
 
+- Followed by logistic regression, a `decision tree` was trained using those 13 features
+
 ::: panel-tabset
 
-### DT
-
-```{r}
-#Get table of samples used to build model
-train_df3 = df[(rownames(df) %in% train_samples),]
-#Get sample labels
-y3 = ann_df %>% slice(match(rownames(train_df3), sample_id)) %>%
-    pull(score)
-#Add column contianing the labels to table
-train_df3$y3 = as.factor(y3)
-test_df3 = df
-
-#Get table of samples used to build model
-test_samples3 = ann_df %>% filter(is.na(score)) %>% pull(sample_id)
-test_df3b = df[(rownames(df) %in% test_samples3),]
-
-
-# Train the decision tree model
-tree_model <- rpart(train_df3$y3~., 
-                    data = train_df3[,1:ncol(train_df3)-1], 
-                    method = "class")  # 'class' for classification
-
-# Summary of the model (prints the decision tree)
-print(tree_model)
-
-# Visualize the decision tree
-rpart.plot(tree_model, type = 2, extra = 102, fallen.leaves = TRUE)
-
-# Predict on test data
-predictions3 <- predict(tree_model, newdata = test_df3, type = "class")
-predictions3b <- predict(tree_model, newdata = test_df3b, type = "class")
-predictions_train_df3 <- predict(tree_model, newdata = train_df3, type = "class")
-
-# Evaluate the model with a confusion matrix
-confusionMatrix(predictions_train_df3, train_df3$y3)
-```
-
-```{r}
-print(as.data.frame( tree_model$variable.importance))
-
-# Plot the variable importance
-barplot(tree_model$variable.importance,
-        main = "Variable Importance from Decision Tree",
-        xlab = "Features",
-        ylab = "Importance",
-        col = "steelblue",
-        horiz = FALSE,
-        las = 2)  # Rotate axis labels for better readability
-```
 
 ### Box-plot
+<img src="images/box_dt.png"/>
 
-```{r}
-#Get the LOOCV error of the model
-err3 = min(tree_model$cptable[,3])
-#Get the features selected by the model
-nzc3 = names(tree_model$variable.importance)
-
-#Subset the data to only the selected features
-train_df3 = train_df3 %>% select(one_of(c(nzc3, "y3")))
-train_df3$y3 <- as.numeric(as.character(train_df3$y3))
-#Build 2nd model using the selected features
-lm_model3 <- lm(y3 ~ ., data = train_df3)
-#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
-r2 <- summary(lm_model3)$r.square
-r2adj = summary(lm_model3)$adj.r.squared
-
-#Subset the entire table to only the selected features
-test_df3 = df %>% select(one_of(nzc3))
-#Use the 2nd model to predict on all samples
-pred3 = predict(
-            lm_model3,
-            test_df3) %>%
-            as.data.frame() %>%
-    rownames_to_column(var="sample_id") %>%
-    dplyr::rename("pred"=".")
-title = paste("OC risk predictions(DT)",
-              "\nLOOCV error =", err3, "\nR2 =",r2, "\nR2adj =", r2adj)
-
-#Make boxplot
-p = make_boxplot(pred3, ann_df, x = "brca_status", y = "pred", 
-                 title=title) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
-print(p)
-
-# plot data
-box3_plot_data <- inner_join(pred3, ann_df, by = join_by(sample_id))
-```
 :::
-
-
 
 
 
 ## PCA
 
+- This initial pca model was trained using all the 403 features in the training dataset
+
 
 ::: panel-tabset
 
 
-### Train_df
-```{r }
-# library(ggbiplot)
-#Get table of samples used to build model
-train_df4 = df[(rownames(df) %in% train_samples),]
-y4 = ann_df %>% slice(match(rownames(train_df4), sample_id)) %>%
-    pull(score)  #Get sample labels
-train_df4$y4 = as.factor(y4)    #Add column contianing the labels to table
-test_df4 = df
+### Biplot
+<img src="images/pca_biplot.png"/>
 
-# PCA
-pc_train_df <- prcomp(train_df4[,1:ncol(train_df4)-1],
-             center = TRUE,
-             scale. = TRUE)
-# print(pc_train_df)
-summary(pc_train_df)
-plot(pc_train_df, type = "lines")
 
-# Bi-Plot
-g <- ggbiplot(pc_train_df, 
-              obs.scale = 1, 
-              var.scale = 1, 
-              groups = train_df4$y4, 
-              ellipse = TRUE, 
-              circle = TRUE,
-              varname.abbrev = TRUE,
-              var.factor = 2,
-              varname.size = 0,
-              ellipse.prob = 0.90)
-g <- g + scale_color_discrete(name = '')
-g <- g + theme(legend.direction = 'horizontal', 
-               legend.position = 'top')
-print(g)
-```
+### Scree
+<img src="images/pca_scree.png"/>
 
 
 ### PC (1-10)
-```{r}
-# Prediction with Principal Components
-pc_train4_pred <- predict(pc_train_df, train_df4)
-pc_train4_pred <- data.frame(pc_train4_pred, y4=as.numeric(as.character(
-  train_df4[,ncol(train_df4)])))
-pc_test4_pred <- predict(pc_train_df, test_df4)
-pc_test4_pred <- data.frame(pc_test4_pred)
+<img src="images/box_pc1-10.png"/>
 
-# Select only the desired features and target
-subset_train_df10 <- pc_train4_pred %>%
-  select(y4, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10)
-
-subset_train_df35 <- pc_train4_pred %>%
-  select(y4, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10,
-         PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20,
-         PC21, PC22, PC23, PC24, PC25, PC26, PC27, PC28, PC29, PC30,
-         PC31, PC32, PC33, PC34, PC35)
-
-subset_test_df10 <- pc_test4_pred %>%
-  select(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10)
-
-subset_test_df35 <- pc_test4_pred %>%
-  select(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10,
-         PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20,
-         PC21, PC22, PC23, PC24, PC25, PC26, PC27, PC28, PC29, PC30,
-         PC31, PC32, PC33, PC34, PC35)
-
-
-# Fit the model for the first 10 PC's
-lm_model4 <- lm(y4 ~ ., data = subset_train_df10)
-#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
-r2 <- summary(lm_model4)$r.square
-r2adj = summary(lm_model4)$adj.r.squared
-
-
-#Use the 2nd model to predict on all samples
-pred4 = predict(
-            lm_model4,
-            subset_test_df10) %>%
-            as.data.frame() %>%
-    rownames_to_column(var="sample_id") %>%
-    dplyr::rename("pred"=".")
-title = paste("OC risk predictions(PC1-10)", "\n72% Var. Exp",
-               "\nR2 =",r2, "\nR2adj =", r2adj)
-
-#Make boxplot
-p = make_boxplot(pred4, ann_df, x = "brca_status", y = "pred", 
-                 title=title) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
-print(p)
-# plot data
-box4a_plot_data <- inner_join(pred4, ann_df, by = join_by(sample_id))
-
-
-
-
-
-# Fit the model for the first 35 PC's
-lm_model4 <- lm(y4 ~ ., data = subset_train_df35)
-#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
-r2 <- summary(lm_model4)$r.square
-r2adj = summary(lm_model4)$adj.r.squared
-
-
-#Use the 2nd model to predict on all samples
-pred4 = predict(
-            lm_model4,
-            subset_test_df35) %>%
-            as.data.frame() %>%
-    rownames_to_column(var="sample_id") %>%
-    dplyr::rename("pred"=".")
-title = paste("OC risk predictions(PC1-35)", "\n94% Var. Exp",
-               "\nR2 =",r2, "\nR2adj =", r2adj)
-
-
-
-```
 
 ### PC (1-35)
-```{r}
-#Make boxplot
-p = make_boxplot(pred4, ann_df, x = "brca_status", y = "pred", 
-                 title=title) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
-print(p)
-
-
-```
+<img src="images/box_pc1-35.png"/>
 :::
 
 
-## PCA with Lasso selected variables
+## PCA (contd...)
 
-
+- Now, let look at the predictions of PCA model trained with Lasso selected (13) variables
 
 ::: panel-tabset
 
-### bi and scree
-
-```{r }
-library(ggbiplot)
-#Get table of samples used to build model
-train_df5 = train_df
-test_df5 = df
-
-# PCA
-pc_train_df2 <- prcomp(train_df5[,1:ncol(train_df5)-1],
-             center = TRUE,
-             scale. = TRUE)
-# print(pc_train_df2)
-summary(pc_train_df2)
-plot(pc_train_df2, type = "lines")
-
-# Bi-Plot
-g <- ggbiplot(pc_train_df2, 
-              obs.scale = 1, 
-              var.scale = 1, 
-              groups = as.factor(train_df5$y), 
-              ellipse = TRUE, 
-              circle = TRUE,
-              varname.abbrev = TRUE,
-              var.factor = 2,
-              varname.size = 3,
-              ellipse.prob = 0.95)
-g <- g + scale_color_discrete(name = '')
-g <- g + theme(legend.direction = 'horizontal', 
-               legend.position = 'top')
-print(g)
-```
+### Biplot
+<img src="images/pca_lasso_bi.png"/>
 
 
-## Box 
-```{r}
-# Prediction with Principal Components
-pc_train4_pred <- predict(pc_train_df, train_df4)
-pc_train4_pred <- data.frame(pc_train4_pred, y4=as.numeric(as.character(
-  train_df4[,ncol(train_df4)])))
-pc_test4_pred <- predict(pc_train_df, test_df4)
-pc_test4_pred <- data.frame(pc_test4_pred)
+### Scree
+<img src="images/pca_lasso_scree.png"/>
 
-# Select only the desired features and target
-subset_train_df10 <- pc_train4_pred %>%
-  select(y4, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10)
-
-subset_train_df35 <- pc_train4_pred %>%
-  select(y4, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10,
-         PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20,
-         PC21, PC22, PC23, PC24, PC25, PC26, PC27, PC28, PC29, PC30,
-         PC31, PC32, PC33, PC34, PC35)
-
-subset_test_df10 <- pc_test4_pred %>%
-  select(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10)
-
-subset_test_df35 <- pc_test4_pred %>%
-  select(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10,
-         PC11, PC12, PC13, PC14, PC15, PC16, PC17, PC18, PC19, PC20,
-         PC21, PC22, PC23, PC24, PC25, PC26, PC27, PC28, PC29, PC30,
-         PC31, PC32, PC33, PC34, PC35)
-
-
-# Fit the model for the first 10 PC's
-lm_model4 <- lm(y4 ~ ., data = subset_train_df10)
-#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
-r2 <- summary(lm_model4)$r.square
-r2adj = summary(lm_model4)$adj.r.squared
-
-
-#Use the 2nd model to predict on all samples
-pred4 = predict(
-            lm_model4,
-            subset_test_df10) %>%
-            as.data.frame() %>%
-    rownames_to_column(var="sample_id") %>%
-    dplyr::rename("pred"=".")
-title = paste("OC risk predictions(PC1-10)", "\n72% Var. Exp",
-               "\nR2 =",r2, "\nR2adj =", r2adj)
-
-#Make boxplot
-p = make_boxplot(pred4, ann_df, x = "brca_status", y = "pred", 
-                 title=title) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
-print(p)
-# plot data
-box4a_plot_data <- inner_join(pred4, ann_df, by = join_by(sample_id))
-
-
-# Fit the model for the first 35 PC's
-lm_model4 <- lm(y4 ~ ., data = subset_train_df35)
-#Get the adjusted r-squared of the 2nd model (shows goodness of fit)
-r2 <- summary(lm_model4)$r.square
-r2adj = summary(lm_model4)$adj.r.squared
-
-
-#Use the 2nd model to predict on all samples
-pred4 = predict(
-            lm_model4,
-            subset_test_df35) %>%
-            as.data.frame() %>%
-    rownames_to_column(var="sample_id") %>%
-    dplyr::rename("pred"=".")
-title = paste("OC risk predictions(PC1-35)", "\n94% Var. Exp",
-               "\nR2 =",r2, "\nR2adj =", r2adj)
-
-#Make boxplot
-p = make_boxplot(pred4, ann_df, x = "brca_status", y = "pred", 
-                 title=title) +
-        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))   #Rotate labels for spacing
-print(p)
-
-# plot data
-box4b_plot_data <- inner_join(pred4, ann_df, by = join_by(sample_id))
-```
+### Box 
+<img src="images/box_pca_lasso.png"/>
 :::
 
 
 
 ## Predictions
-```{r}
 
-# plot data
-box4b_plot_data <- inner_join(pred4, ann_df, by = join_by(sample_id))
+- Overview of the performance of all the models on the test-set
 
-models_pred <- data.frame(box_plot_data[,1:2],
-                                DT_pred=box3_plot_data[,2],
-                                pc1_10_pred=box4a_plot_data[,2],
-                                pc1_35_pred=box4b_plot_data[,2],
-                                Logst_pred=box2_plot_data[,2],
-                                box_plot_data[3:4])
-models_pred <- models_pred %>%dplyr::rename(Lasso_pred = pred)
-FH.b4_models_pred <- models_pred %>% filter(brca_status == "FH.b4")
+::: panel-tabset
 
-# Line graph to comparison of predictions base on each models
-matplot(t(FH.b4_models_pred[2:6]), type = "b", pch = 16, lty = 1, col = 1:10, xaxt = "n", xlab = "Columns", ylab = "predictions", 
-        main = "Line Graph for FH.b4 model's preditions")
-axis(1, at = 1:5, labels = colnames(FH.b4_models_pred)[2:6])
-legend("topright", legend = FH.b4_models_pred$sample_id, col = 1:10, lty = 1, pch = 16, cex = 0.8)
+### Line Plot
+<img src="images/line_legend.png"/>
 
+### Line (no legend)
+<img src="images/line_nolegend.png"/>
 
-# Line graph to comparison of predictions base on each models without legend
-matplot(t(FH.b4_models_pred[2:6]), type = "b", pch = 16, lty = 1, col = 1:10, xaxt = "n", xlab = "Columns", ylab = "predictions", 
-        main = "Line Graph for FH.b4 model's preditions")
-axis(1, at = 1:5, labels = colnames(FH.b4_models_pred)[2:6])
-```
+### CV error
+<img src="images/cv_error.png"/>
 
-```{r}
-# Plot of CV error of each model
-cv_error_plot_data <- c(min(logit_modelcv_lambda$cvm), err3,err)
-x_labels <- c("Logistic", "DT", "Lasso")
-plot(cv_error_plot_data,type = "b", pch = 19, xaxt = "n", ylab = "Y Values", xlab = "Custom X Axis", main = "CV Error of Each Model")
+### Table
+<img src="images/test_set.png"/>
+:::
 
-# Add custom x-axis with character labels
-axis(1, at = 1:length(x_labels), labels = x_labels)
-```
 
 

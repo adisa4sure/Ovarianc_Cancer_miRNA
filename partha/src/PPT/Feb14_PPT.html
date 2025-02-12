@@ -332,22 +332,33 @@
 </div>
 
 </section>
-<section id="objective" class="slide level2">
-<h2>Objective</h2>
-<p>– To predict ovarian cancer risk using miRNA expression profiles.</p>
+<section>
+<section id="objective" class="title-slide slide level1 center">
+<h1>Objective</h1>
+<center>
+To predict ovarian cancer risk using miRNA expression profiles
+</center>
 </section>
 <section id="work-done-so-far" class="slide level2">
 <h2>Work done so far…</h2>
-<p>– Preprocessed the RAW and Annotated datasets<br>
-– Implented TPM Normalization<br>
-– Built an initial LASSO linear regression model using glmnet and performed LOOCV<br>
-– Extracted the most informative features (using LASSO)<br>
-– Rebuilt a linear model with these selected features<br>
-– Extended this approach to logistic regression, decision trees, and PCA for comparison</p>
+<ul>
+<li>Preprocessed the RAW and Annotated datasets<br>
+</li>
+<li>Implented TPM Normalization<br>
+</li>
+<li>Built an initial LASSO linear regression model using glmnet and performed LOOCV<br>
+</li>
+<li>Extracted the most informative features (using LASSO)<br>
+</li>
+<li>Rebuilt a linear model with these selected features<br>
+</li>
+<li>Extended this approach to logistic regression, decision trees, and PCA for comparison</li>
+</ul>
 </section>
 <section id="what-does-the-data-look-like" class="slide level2 hscroll scrollable">
 <h2>What does the data look like?</h2>
 <p>(Post data-preprocessing and TPM normalization)</p>
+<p>Dimensions - 403 x 80</p>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
 <pre><code>              X45_R1_adapt10 X38_R1_adapt10 X48_R1_adapt10 X31_R1_adapt10
@@ -491,17 +502,15 @@ hsa-let-7d-5p  12.235655  11.501490</code></pre>
 </section>
 <section id="lasso" class="slide level2">
 <h2>Lasso</h2>
+<ul>
+<li>Selected important (13) features and trained the model<br>
+</li>
+<li>Made predictions using the “FH.B4” group as test-set</li>
+</ul>
 <div class="panel-tabset">
-<ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Plot</a></li><li><a href="#tabset-1-2">Selected Features</a></li></ul>
+<ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Features</a></li><li><a href="#tabset-1-2">Test-set (FH.B4)</a></li><li><a href="#tabset-1-3">Lasso-pred</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1">
-<div class="cell">
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-5-1.png" width="960"></p>
-</div>
-</div>
-</div>
-<div id="tabset-1-2">
 <div class="cell">
 <div class="cell-output cell-output-stdout">
 <pre><code> [1] "hsa-miR-1290"    "hsa-miR-150-5p"  "hsa-miR-19a-3p"  "hsa-miR-19b-3p" 
@@ -511,248 +520,122 @@ hsa-let-7d-5p  12.235655  11.501490</code></pre>
 </div>
 </div>
 </div>
+<div id="tabset-1-2">
+<p><img src="images/test_set.png"></p>
+</div>
+<div id="tabset-1-3">
+<div class="cell">
+<div class="cell-output-display">
+<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-6-1.png" width="960"></p>
+</div>
+</div>
+</div>
 </div>
 </div>
 </section>
 <section id="logistic-regression" class="slide level2">
 <h2>Logistic Regression</h2>
+<ul>
+<li>Similar to Lasso, trained the model using important (13) features</li>
+</ul>
 <div class="panel-tabset">
-<ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1"><span class="math inline">\(\alpha\)</span> = 0.5</a></li><li><a href="#tabset-2-2"><span class="math inline">\(\lambda\)</span> (default)</a></li><li><a href="#tabset-2-3">Box-plot</a></li></ul>
+<ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Box-plot</a></li><li><a href="#tabset-2-2"><span class="math inline">\(\alpha\)</span> = 0.5</a></li><li><a href="#tabset-2-3"><span class="math inline">\(\lambda\)</span> (default)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-2-1">
-<div class="cell">
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-8-1.png" width="960"></p>
-</div>
-<div class="cell-output cell-output-stdout">
-<pre><code>min.cv.error: 0.2181818 
-lambda of min.error: 0.07011977</code></pre>
-</div>
-</div>
+<p><img src="images/box_logistic.png"></p>
 </div>
 <div id="tabset-2-2">
-<div class="cell">
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-9-1.png" width="960"></p>
-</div>
-<div class="cell-output cell-output-stdout">
-<pre><code>   alphas mean_cv_errors std_errors
-1     0.0           0.34 0.04268749
-2     0.1           0.30 0.06146363
-3     0.2           0.32 0.06798693
-4     0.3           0.31 0.07063207
-5     0.4           0.29 0.06403124
-6     0.5           0.30 0.06146363
-7     0.6           0.30 0.06146363
-8     0.7           0.31 0.06046119
-9     0.8           0.31 0.06046119
-10    0.9           0.33 0.05972158
-11    1.0           0.31 0.06403124</code></pre>
-</div>
-</div>
+<p><img src="images/alpha0.5.png"></p>
 </div>
 <div id="tabset-2-3">
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>Confusion Matrix and Statistics
-
-          Reference
-Prediction  0  1
-         0 25  0
-         1  0 30
-                                     
-               Accuracy : 1          
-                 95% CI : (0.9351, 1)
-    No Information Rate : 0.5455     
-    P-Value [Acc &gt; NIR] : 3.324e-15  
-                                     
-                  Kappa : 1          
-                                     
- Mcnemar's Test P-Value : NA         
-                                     
-            Sensitivity : 1.0000     
-            Specificity : 1.0000     
-         Pos Pred Value : 1.0000     
-         Neg Pred Value : 1.0000     
-             Prevalence : 0.4545     
-         Detection Rate : 0.4545     
-   Detection Prevalence : 0.4545     
-      Balanced Accuracy : 1.0000     
-                                     
-       'Positive' Class : 0          
-                                     </code></pre>
-</div>
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-10-1.png" width="960"></p>
-</div>
-</div>
+<p><img src="images/lambda_logistic.png"></p>
 </div>
 </div>
 </div>
 </section>
 <section id="decision-tree" class="slide level2">
 <h2>Decision Tree</h2>
+<ul>
+<li>Followed by logistic regression, a <code>decision tree</code> was trained using those 13 features</li>
+</ul>
 <div class="panel-tabset">
-<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">DT</a></li><li><a href="#tabset-3-2">Box-plot</a></li></ul>
+<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Box-plot</a></li></ul>
 <div class="tab-content">
 <div id="tabset-3-1">
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>n= 55 
-
-node), split, n, loss, yval, (yprob)
-      * denotes terminal node
-
- 1) root 55 25 1 (0.4545455 0.5454545)  
-   2) hsa-miR-19a-3p&gt;=10.11139 15  2 0 (0.8666667 0.1333333) *
-   3) hsa-miR-19a-3p&lt; 10.11139 40 12 1 (0.3000000 0.7000000)  
-     6) hsa-miR-27b-5p&lt; 2.426795 7  0 0 (1.0000000 0.0000000) *
-     7) hsa-miR-27b-5p&gt;=2.426795 33  5 1 (0.1515152 0.8484848)  
-      14) hsa-miR-10a-3p&lt; 6.150724 7  2 0 (0.7142857 0.2857143) *
-      15) hsa-miR-10a-3p&gt;=6.150724 26  0 1 (0.0000000 1.0000000) *</code></pre>
-</div>
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-11-1.png" width="960"></p>
-</div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Confusion Matrix and Statistics
-
-          Reference
-Prediction  0  1
-         0 25  4
-         1  0 26
-                                          
-               Accuracy : 0.9273          
-                 95% CI : (0.8241, 0.9798)
-    No Information Rate : 0.5455          
-    P-Value [Acc &gt; NIR] : 6.008e-10       
-                                          
-                  Kappa : 0.8553          
-                                          
- Mcnemar's Test P-Value : 0.1336          
-                                          
-            Sensitivity : 1.0000          
-            Specificity : 0.8667          
-         Pos Pred Value : 0.8621          
-         Neg Pred Value : 1.0000          
-             Prevalence : 0.4545          
-         Detection Rate : 0.4545          
-   Detection Prevalence : 0.5273          
-      Balanced Accuracy : 0.9333          
-                                          
-       'Positive' Class : 0               
-                                          </code></pre>
-</div>
-</div>
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>                tree_model$variable.importance
-hsa-miR-27b-5p                        8.315152
-hsa-miR-19a-3p                        7.006061
-hsa-miR-10a-3p                        5.627706
-hsa-miR-19b-3p                        5.604848
-hsa-miR-493-5p                        4.751515
-hsa-miR-345-5p                        4.670707
-hsa-miR-30e-5p                        4.203636
-hsa-miR-378a-5p                       4.203636
-hsa-miR-425-5p                        4.203636
-hsa-miR-130a-3p                       4.019790
-hsa-miR-335-5p                        4.019790
-hsa-miR-450b-5p                       4.019790
-hsa-miR-629-5p                        4.019790
-hsa-miR-9-5p                          4.019790
-hsa-miR-185-3p                        3.563636
-hsa-miR-2355-3p                       3.563636
-hsa-miR-548e-3p                       3.563636
-hsa-miR-619-5p                        3.563636</code></pre>
-</div>
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-12-1.png" width="960"></p>
-</div>
-</div>
-</div>
-<div id="tabset-3-2">
-<div class="cell">
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-13-1.png" width="960"></p>
-</div>
-</div>
+<p><img src="images/box_dt.png"></p>
 </div>
 </div>
 </div>
 </section>
 <section id="pca" class="slide level2">
 <h2>PCA</h2>
-<p>::: panel-tabset</p>
-<h3 id="train_df">Train_df</h3>
-<div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>Importance of components:
-                           PC1    PC2     PC3     PC4     PC5    PC6     PC7
-Standard deviation     10.9274 6.8931 6.31665 4.71040 3.81164 3.5232 3.14530
-Proportion of Variance  0.2963 0.1179 0.09901 0.05506 0.03605 0.0308 0.02455
-Cumulative Proportion   0.2963 0.4142 0.51321 0.56827 0.60432 0.6351 0.65967
-                           PC8    PC9    PC10    PC11    PC12   PC13   PC14
-Standard deviation     2.92072 2.8530 2.79475 2.58737 2.52245 2.4502 2.3496
-Proportion of Variance 0.02117 0.0202 0.01938 0.01661 0.01579 0.0149 0.0137
-Cumulative Proportion  0.68083 0.7010 0.72041 0.73703 0.75281 0.7677 0.7814
-                          PC15    PC16    PC17    PC18    PC19    PC20   PC21
-Standard deviation     2.28342 2.19261 2.10405 2.01196 1.95926 1.95216 1.8721
-Proportion of Variance 0.01294 0.01193 0.01099 0.01004 0.00953 0.00946 0.0087
-Cumulative Proportion  0.79435 0.80628 0.81726 0.82731 0.83683 0.84629 0.8550
-                         PC22    PC23    PC24    PC25    PC26    PC27    PC28
-Standard deviation     1.8180 1.81083 1.76648 1.75886 1.72095 1.67490 1.60461
-Proportion of Variance 0.0082 0.00814 0.00774 0.00768 0.00735 0.00696 0.00639
-Cumulative Proportion  0.8632 0.87132 0.87907 0.88674 0.89409 0.90105 0.90744
-                         PC29    PC30    PC31    PC32    PC33    PC34    PC35
-Standard deviation     1.5811 1.56591 1.54715 1.50657 1.48602 1.40431 1.38806
-Proportion of Variance 0.0062 0.00608 0.00594 0.00563 0.00548 0.00489 0.00478
-Cumulative Proportion  0.9136 0.91973 0.92567 0.93130 0.93678 0.94167 0.94645
-                          PC36    PC37    PC38    PC39    PC40    PC41    PC42
-Standard deviation     1.37090 1.32580 1.31743 1.22896 1.22676 1.16389 1.16115
-Proportion of Variance 0.00466 0.00436 0.00431 0.00375 0.00373 0.00336 0.00335
-Cumulative Proportion  0.95112 0.95548 0.95979 0.96353 0.96727 0.97063 0.97398
-                         PC43    PC44    PC45    PC46   PC47    PC48   PC49
-Standard deviation     1.1538 1.09094 1.02522 1.00128 0.9831 0.94973 0.9208
-Proportion of Variance 0.0033 0.00295 0.00261 0.00249 0.0024 0.00224 0.0021
-Cumulative Proportion  0.9773 0.98023 0.98284 0.98533 0.9877 0.98996 0.9921
-                          PC50    PC51    PC52    PC53    PC54      PC55
-Standard deviation     0.90898 0.85383 0.81694 0.76448 0.62394 8.705e-15
-Proportion of Variance 0.00205 0.00181 0.00166 0.00145 0.00097 0.000e+00
-Cumulative Proportion  0.99412 0.99593 0.99758 0.99903 1.00000 1.000e+00</code></pre>
+<ul>
+<li>This initial pca model was trained using all the 403 features in the training dataset</li>
+</ul>
+<div class="panel-tabset">
+<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Biplot</a></li><li><a href="#tabset-4-2">Scree</a></li><li><a href="#tabset-4-3">PC (1-10)</a></li><li><a href="#tabset-4-4">PC (1-35)</a></li></ul>
+<div class="tab-content">
+<div id="tabset-4-1">
+<p><img src="images/pca_biplot.png"></p>
 </div>
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-14-1.png" width="960"></p>
+<div id="tabset-4-2">
+<p><img src="images/pca_scree.png"></p>
 </div>
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-14-2.png" width="960"></p>
+<div id="tabset-4-3">
+<p><img src="images/box_pc1-10.png"></p>
+</div>
+<div id="tabset-4-4">
+<p><img src="images/box_pc1-35.png"></p>
 </div>
 </div>
-<h3 id="pc-1-10">PC (1-10)</h3>
-<div class="cell">
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-15-1.png" width="960"></p>
+</div>
+</section>
+<section id="pca-contd" class="slide level2">
+<h2>PCA (contd…)</h2>
+<ul>
+<li>Now, let look at the predictions of PCA model trained with Lasso selected (13) variables</li>
+</ul>
+<div class="panel-tabset">
+<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Biplot</a></li><li><a href="#tabset-5-2">Scree</a></li><li><a href="#tabset-5-3">Box</a></li></ul>
+<div class="tab-content">
+<div id="tabset-5-1">
+<p><img src="images/pca_lasso_bi.png"></p>
+</div>
+<div id="tabset-5-2">
+<p><img src="images/pca_lasso_scree.png"></p>
+</div>
+<div id="tabset-5-3">
+<p><img src="images/box_pca_lasso.png"></p>
 </div>
 </div>
-<h3 id="pc-1-35">PC (1-35)</h3>
-<div class="cell">
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-16-1.png" width="960"></p>
 </div>
+</section>
+<section id="predictions" class="slide level2">
+<h2>Predictions</h2>
+<ul>
+<li>Overview of the performance of all the models on the test-set</li>
+</ul>
+<div class="panel-tabset">
+<ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Line Plot</a></li><li><a href="#tabset-6-2">Line (no legend)</a></li><li><a href="#tabset-6-3">CV error</a></li><li><a href="#tabset-6-4">Table</a></li></ul>
+<div class="tab-content">
+<div id="tabset-6-1">
+<p><img src="images/line_legend.png"></p>
 </div>
-<h3 id="abc">abc</h3>
-<div class="cell">
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-17-1.png" width="960"></p>
+<div id="tabset-6-2">
+<p><img src="images/line_nolegend.png"></p>
 </div>
-<div class="cell-output-display">
-<p><img data-src="Feb14_PPT_files/figure-revealjs/unnamed-chunk-17-2.png" width="960"></p>
+<div id="tabset-6-3">
+<p><img src="images/cv_error.png"></p>
+</div>
+<div id="tabset-6-4">
+<p><img src="images/test_set.png"></p>
+</div>
 </div>
 </div>
 <div class="footer footer-default">
 
 </div>
-</section>
+</section></section>
     </div>
   </div>
 
