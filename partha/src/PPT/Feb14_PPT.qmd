@@ -1,19 +1,30 @@
 ---
 title: "Ovarian Cancer Risk Prediction Using `miRNA` Data"
-format:
-  revealjs: 
-    scrollable: true
-editor: visual
-css: style.css
+author: "Saheed"
 
 execute: 
   echo: false
   warning: false
+  
+format:
+  revealjs:
+    css: style.css
+    scrollable: true
+    embed-resources: true
+    theme: night
+    transition: slide
+    background-transition: fade
+    slide-number: true
+  
+editor: visual
 ---
+
+
+
 
 # Objective
 
-<center>To predict ovarian cancer risk using miRNA expression profiles</center>
+To predict ovarian cancer risk using miRNA expression profiles
 
 ## Work done so far...
 
@@ -270,4 +281,5 @@ box_plot_data <- inner_join(pred, ann_df, by = join_by(sample_id))
 :::
 
 
+# Thank You
 
