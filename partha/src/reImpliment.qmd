@@ -269,7 +269,7 @@ saveRDS(out_df, "../res/b4_oc_combat.rds")
 
 ```{r }
 #Load in the labels for the 1st dataset
-oc_ann = readRDS("blood_oc_full_ann.rds")
+oc_ann = readRDS("../data/blood_oc_full_ann.rds")
 #Get the ovarian cancer sample IDs
 oc_samples = oc_ann  %>% 
     filter(batch=="PMP" & (Histology=="Serous" & (STAGE=="Stage I/II" | STAGE=="Stage III/IV"))) %>%
@@ -278,7 +278,7 @@ oc_samples = oc_ann  %>%
 control_samples = oc_ann %>% filter(batch=="NECC") %>% pull(Run)
 
 #Load in the combined labels for the 2 datasets
-ann_df = readRDS("b1b4OC_ann_full.rds") %>%
+ann_df = readRDS("../data/b1b4OC_ann_full.rds") %>%
     mutate(score=case_when(sample_id %in% control_samples | Condition=="LR" ~0, #Label healthy control samples for model
                            sample_id %in% oc_samples ~1),   #Label cancer samples for model
           brca_status=case_when(Condition=="Control" | brca_status=="LR" ~"Healthy control",  #Label the samples for plotting
@@ -296,7 +296,7 @@ ann_df = readRDS("b1b4OC_ann_full.rds") %>%
 
 ```{r }
 #Load in the data
-df = readRDS("b4_oc_combat.rds") 
+df = readRDS("../res/b4_oc_combat.rds") 
 #Transpose table because glmnet package expects rows as samples, columns as features
 df = df %>% t() %>% as.data.frame()
 
@@ -336,7 +336,7 @@ pred = predict(
             test_df) %>%
             as.data.frame() %>%
     rownames_to_column(var="sample_id") %>%
-    rename("pred"=".")
+    dplyr::rename("pred"=".")
 title = paste("OC risk predictions(Lasso)",
               "\nLOOCV error =", err,"\nR2 =",r2, "\nR2adj =", r2adj)
 
@@ -465,7 +465,7 @@ confusionMatrix(factor(pred_class_train_df2), train_df2$y2)
 
 
 pred2 = as.data.frame(predictions2[,ncol(predictions2)]) %>%
-    rownames_to_column(var="sample_id") %>% rename(pred = "predictions2[, ncol(predictions2)]")
+    rownames_to_column(var="sample_id") %>% dplyr::rename(pred = "predictions2[, ncol(predictions2)]")
 title = paste("OC risk predictions(Logistic)",
               "\nAccuracy =",100, "\nerror =", logit_model2$jerr)
 
@@ -554,7 +554,7 @@ pred3 = predict(
             test_df3) %>%
             as.data.frame() %>%
     rownames_to_column(var="sample_id") %>%
-    rename("pred"=".")
+    dplyr::rename("pred"=".")
 title = paste("OC risk predictions(DT)",
               "\nLOOCV error =", err3, "\nR2 =",r2, "\nR2adj =", r2adj)
 
@@ -645,7 +645,7 @@ pred4 = predict(
             subset_test_df10) %>%
             as.data.frame() %>%
     rownames_to_column(var="sample_id") %>%
-    rename("pred"=".")
+    dplyr::rename("pred"=".")
 title = paste("OC risk predictions(PC1-10)", "\n72% Var. Exp",
                "\nR2 =",r2, "\nR2adj =", r2adj)
 
@@ -671,7 +671,7 @@ pred4 = predict(
             subset_test_df35) %>%
             as.data.frame() %>%
     rownames_to_column(var="sample_id") %>%
-    rename("pred"=".")
+    dplyr::rename("pred"=".")
 title = paste("OC risk predictions(PC1-35)", "\n94% Var. Exp",
                "\nR2 =",r2, "\nR2adj =", r2adj)
 
@@ -692,7 +692,7 @@ models_pred <- data.frame(box_plot_data[,1:2],
                                 pc1_35_pred=box4b_plot_data[,2],
                                 Logst_pred=box2_plot_data[,2],
                                 box_plot_data[3:4])
-models_pred <- models_pred %>%rename(Lasso_pred = pred)
+models_pred <- models_pred %>%dplyr::rename(Lasso_pred = pred)
 FH.b4_models_pred <- models_pred %>% filter(brca_status == "FH.b4")
 
 # Line graph to comparison of predictions base on each models
@@ -782,7 +782,7 @@ pred4 = predict(
             subset_test_df10) %>%
             as.data.frame() %>%
     rownames_to_column(var="sample_id") %>%
-    rename("pred"=".")
+    dplyr::rename("pred"=".")
 title = paste("OC risk predictions(PC1-10)", "\n72% Var. Exp",
                "\nR2 =",r2, "\nR2adj =", r2adj)
 
@@ -808,7 +808,7 @@ pred4 = predict(
             subset_test_df35) %>%
             as.data.frame() %>%
     rownames_to_column(var="sample_id") %>%
-    rename("pred"=".")
+    dplyr::rename("pred"=".")
 title = paste("OC risk predictions(PC1-35)", "\n94% Var. Exp",
                "\nR2 =",r2, "\nR2adj =", r2adj)
 
