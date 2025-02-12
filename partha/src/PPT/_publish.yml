@@ -1,0 +1,4 @@
+- source: Feb14_PPT.qmd
+  quarto-pub:
+    - id: ba8d82d2-8fc8-42f9-97f8-5bc15cf42d25
+      url: 'https://partha-pkp.quarto.pub/ocmirna_2025feb14'
